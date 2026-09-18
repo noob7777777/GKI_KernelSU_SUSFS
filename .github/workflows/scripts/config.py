@@ -94,6 +94,10 @@ LEGACY_FIXES = {
 }
 OP8E_PATCH_URL = "https://github.com/zzh20188/GKI_KernelSU_SUSFS/raw/refs/heads/dev/hmbird_patch.c"
 KPM_PATCH_URL = "https://raw.githubusercontent.com/ShirkNeko/SukiSU_patch/refs/heads/main/kpm/patch_linux"
+SUSFS_SUCOMPAT_SHIM_SETUP_URL = (
+    "https://raw.githubusercontent.com/junhaoyyds/abk-susfs-sucompat-shim/"
+    "58b77a71359b3bfe4608afcdb07d84268e896f11/setup.sh"
+)
 
 
 @dataclass

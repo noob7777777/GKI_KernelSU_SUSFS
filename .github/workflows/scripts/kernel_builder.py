@@ -8,7 +8,8 @@ from dataclasses import dataclass, field
 
 from config import (BuildConfig, KSU_REPO_CONFIG, SUSFS_REPO_CONFIG, SUKISU_PATCH_REPO_CONFIG,
                    ANYKERNEL_CONFIG, KERNEL_PATCHES_CONFIG, BBG_CONFIG, TOOLCHAIN_CONFIG,
-                   LEGACY_FIXES, OP8E_PATCH_URL, KPM_PATCH_URL)
+                   LEGACY_FIXES, OP8E_PATCH_URL, KPM_PATCH_URL,
+                   SUSFS_SUCOMPAT_SHIM_SETUP_URL)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -300,6 +301,34 @@ CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
                 self._chdir(common_dir)
                 self._run_cmd(f"patch -p1 --fuzz=3 < {patch_file}", check=False)
                 self._chdir(self.work_dir)
+
+    def apply_susfs_sucompat_shim(self):
+        """Run the standalone SUSFS/SukiSU compatibility shim after patching."""
+        logger.info("=== 应用 SUSFS sucompat shim ===")
+        exec_file = self.work_dir / "common/fs/exec.c"
+        if not exec_file.exists():
+            raise RuntimeError(f"找不到内核源码文件: {exec_file}")
+
+        shim_script = self.workspace / ".cache/susfs-sucompat-shim/setup.sh"
+        shim_script.parent.mkdir(parents=True, exist_ok=True)
+
+        self._chdir(self.workspace)
+        self._run_cmd(
+            f'curl -LSsf "{SUSFS_SUCOMPAT_SHIM_SETUP_URL}" '
+            f'-o "{shim_script}"'
+        )
+        self._run_cmd(f'chmod 700 "{shim_script}"')
+        self._run_cmd(
+            f'KERNEL_ROOT="{self.work_dir}" bash "{shim_script}"'
+        )
+
+        with open(exec_file, "r") as f:
+            content = f.read()
+        if "ABK-SUSFS-SUCOMPAT-SHIM" not in content:
+            raise RuntimeError("SUSFS sucompat shim 标记未写入 fs/exec.c")
+        if "ksu_handle_post_execveat_sucompat" not in content:
+            raise RuntimeError("SUSFS sucompat shim 符号未写入 fs/exec.c")
+        logger.info("SUSFS sucompat shim 已验证: %s", exec_file)
 
     def apply_sukisu_patches(self):
         logger.info("=== 应用 SukiSU 补丁 ===")
@@ -740,6 +769,7 @@ CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
             self.add_kernelsu()
             self.add_bbg()
             self.apply_susfs_patches()
+            self.apply_susfs_sucompat_shim()
             self.apply_sukisu_patches()
             self.apply_zram_patches()
             self.apply_task_mmu_fixes()
